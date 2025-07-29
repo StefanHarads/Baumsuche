@@ -138,9 +138,14 @@ def init_db():
     return "Datenbank initialisiert"
 
 
+
+
+
 @app.route('/db-check')
 def db_check():
-    return f"Datenbankverbindung: {app.config['SQLALCHEMY_DATABASE_URI']}"
+    uri = app.config['SQLALCHEMY_DATABASE_URI']
+    db_type = 'PostgreSQL' if 'postgresql' in uri else 'SQLite'
+    return f"Datenbanktyp: {db_type}"
 
 
 if __name__ == '__main__':

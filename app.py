@@ -146,10 +146,11 @@ if __name__ == '__main__':
 @app.route('/debug-tables')
 def debug_tables():
     try:
-        result = db.engine.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
-        )
-        tables = [row[0] for row in result]
+        with db.engine.connect() as connection:
+            result = connection.execute(
+                "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
+            )
+            tables = [row[0] for row in result]
         return f"Gefundene Tabellen: {tables}"
     except Exception as e:
         return f"Fehler beim Auslesen: {e}"

@@ -142,3 +142,14 @@ def init_db():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
+
+    @app.route('/debug-tables')
+def debug_tables():
+    try:
+        result = db.engine.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
+        )
+        tables = [row[0] for row in result]
+        return f"Gefundene Tabellen: {tables}"
+    except Exception as e:
+        return f"Fehler beim Auslesen: {e}"

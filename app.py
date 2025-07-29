@@ -129,12 +129,17 @@ def admin():
 
 @app.route('/init-admin')
 def init_admin():
-    if User.query.filter_by(username='admin').first():
-        return "Admin existiert bereits"
-    admin = User(username='admin', password=generate_password_hash('admin123'))
-    db.session.add(admin)
-    db.session.commit()
-    return "Admin wurde erstellt"
+    try:
+        existing = User.query.filter_by(username='admin').first()
+        if existing:
+            return "Admin existiert bereits"
+        admin = User(username='admin', password=generate_password_hash('admin123'))
+        db.session.add(admin)
+        db.session.commit()
+        return "Admin wurde erstellt"
+    except Exception as e:
+        return f"Fehler beim Admin-Setup: {e}"
+        #
 @app.route('/init-db')
 def init_db():
     db.create_all()

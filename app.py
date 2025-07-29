@@ -1,16 +1,17 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from sqlalchemy import text
 import os
 import csv
 from io import TextIOWrapper
-from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text  # ✅ GENAU HIER (kein Leerzeichen davor!)
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://baumdb_user:eKi9mdvkHzadxOiicwc2c3HX6wRbI3Uk@dpg-d249i5ili9vc73cgsso0-a/baumdb'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///local.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -21,7 +22,7 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(300), nullable=False)
+    password = db.Column(db.Text, nullable=False)  # langer Hash möglich
 
 class Tree(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -43,7 +44,10 @@ def login():
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password, request.form['password']):
             login_user(user)
-            return redirect(url_for('baum_suche'))
+            if user.username == 'admin':
+                return redirect(url_for('admin'))
+            else:
+                return redirect(url_for('baum_suche'))
         else:
             return render_template('login.html', fehler='Login fehlgeschlagen.')
     return render_template('login.html')
@@ -67,14 +71,16 @@ def baum_suche():
     return render_template('baum_suche.html')
 
 @app.route('/reset-db')
+@login_required
 def reset_db():
+    if current_user.username != 'admin':
+        return "Zugriff verweigert", 403
     try:
         db.drop_all()
         db.create_all()
         return "✅ Datenbank wurde zurückgesetzt."
     except Exception as e:
-        return f"❌ Fehler beim Zurücksetzen: {e}"
-
+        return f"❌ Fehler beim Reset: {e}"
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -82,7 +88,6 @@ def admin():
     if current_user.username != 'admin':
         return redirect(url_for('index'))
 
-    from werkzeug.utils import secure_filename
     users = User.query.all()
 
     if request.method == 'POST':
@@ -118,53 +123,33 @@ def admin():
             file = request.files['csvfile']
             if file and username:
                 user = User.query.filter_by(username=username).first()
-                reader = csv.DictReader(TextIOWrapper(file, encoding='utf-8'))
-                Tree.query.filter_by(user_id=user.id).delete()
-                for row in reader:
-                    tree = Tree(uid=row['UID'], data=row, user_id=user.id)
-                    db.session.add(tree)
-                db.session.commit()
-                flash('CSV importiert.')
+                try:
+                    reader = csv.DictReader(TextIOWrapper(file, encoding='utf-8'))
+                    Tree.query.filter_by(user_id=user.id).delete()
+                    for row in reader:
+                        if 'UID' not in row:
+                            continue
+                        tree = Tree(uid=row['UID'], data=row, user_id=user.id)
+                        db.session.add(tree)
+                    db.session.commit()
+                    flash('CSV importiert.')
+                except Exception as e:
+                    flash(f'Fehler beim Import: {e}')
 
     return render_template('admin.html', users=users)
 
 @app.route('/init-admin')
 def init_admin():
     try:
-        print("🔍 Starte Admin-Initialisierung...")
-        existing = User.query.filter_by(username='admin').first()
-        print(f"✅ Abfrage abgeschlossen. Gefundener User: {existing}")
-        if existing:
-            return "Admin existiert bereits"
-        
-        hashed_pw = generate_password_hash('admin123')
-        print(f"🔐 Passwort gehasht: {hashed_pw}")
-        admin = User(username='admin', password=hashed_pw)
+        if User.query.filter_by(username='admin').first():
+            return "⚠️ Admin existiert bereits."
+        admin = User(username='admin', password=generate_password_hash('admin123'))
         db.session.add(admin)
         db.session.commit()
-        print("✅ Admin gespeichert.")
-        return "Admin wurde erstellt"
+        return "✅ Admin wurde erstellt."
     except Exception as e:
-        print(f"❌ Fehler bei init-admin: {e}")
-        return f"Fehler beim Admin-Setup: {e}", 500
-        #
-@app.route('/init-db')
-def init_db():
-    db.create_all()
-    return "Datenbanktabellen erstellt"
+        return f"Fehler beim Admin-Setup: {e}"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
-@app.route('/debug-tables')
-def debug_tables():
-    try:
-        with db.engine.connect() as connection:
-            result = connection.execute(
-                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
-            )
-            tables = [row[0] for row in result]
-        return f"Gefundene Tabellen: {tables}"
-    except Exception as e:
-        return f"Fehler beim Auslesen: {e}"

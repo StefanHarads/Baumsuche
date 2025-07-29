@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from sqlalchemy import text
 import os
 import csv
@@ -11,6 +10,7 @@ from io import TextIOWrapper
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 
+# Lokale SQLite als Fallback, PostgreSQL auf Render
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///local.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -22,7 +22,7 @@ class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.Text, nullable=False)  # langer Hash möglich
+    password = db.Column(db.Text, nullable=False)
 
 class Tree(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -44,10 +44,7 @@ def login():
         user = User.query.filter_by(username=request.form['username']).first()
         if user and check_password_hash(user.password, request.form['password']):
             login_user(user)
-            if user.username == 'admin':
-                return redirect(url_for('admin'))
-            else:
-                return redirect(url_for('baum_suche'))
+            return redirect(url_for('baum_suche'))
         else:
             return render_template('login.html', fehler='Login fehlgeschlagen.')
     return render_template('login.html')
@@ -69,18 +66,6 @@ def baum_suche():
         else:
             return render_template('baum_suche.html', fehler='UID nicht gefunden.')
     return render_template('baum_suche.html')
-
-@app.route('/reset-db')
-@login_required
-def reset_db():
-    if current_user.username != 'admin':
-        return "Zugriff verweigert", 403
-    try:
-        db.drop_all()
-        db.create_all()
-        return "✅ Datenbank wurde zurückgesetzt."
-    except Exception as e:
-        return f"❌ Fehler beim Reset: {e}"
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -123,18 +108,13 @@ def admin():
             file = request.files['csvfile']
             if file and username:
                 user = User.query.filter_by(username=username).first()
-                try:
-                    reader = csv.DictReader(TextIOWrapper(file, encoding='utf-8'))
-                    Tree.query.filter_by(user_id=user.id).delete()
-                    for row in reader:
-                        if 'UID' not in row:
-                            continue
-                        tree = Tree(uid=row['UID'], data=row, user_id=user.id)
-                        db.session.add(tree)
-                    db.session.commit()
-                    flash('CSV importiert.')
-                except Exception as e:
-                    flash(f'Fehler beim Import: {e}')
+                reader = csv.DictReader(TextIOWrapper(file, encoding='utf-8'))
+                Tree.query.filter_by(user_id=user.id).delete()
+                for row in reader:
+                    tree = Tree(uid=row['UID'], data=row, user_id=user.id)
+                    db.session.add(tree)
+                db.session.commit()
+                flash('CSV importiert.')
 
     return render_template('admin.html', users=users)
 
@@ -142,13 +122,20 @@ def admin():
 def init_admin():
     try:
         if User.query.filter_by(username='admin').first():
-            return "⚠️ Admin existiert bereits."
-        admin = User(username='admin', password=generate_password_hash('admin123'))
+            return "Admin existiert bereits"
+        hashed_pw = generate_password_hash('admin123')
+        admin = User(username='admin', password=hashed_pw)
         db.session.add(admin)
         db.session.commit()
-        return "✅ Admin wurde erstellt."
+        return "Admin wurde erstellt"
     except Exception as e:
-        return f"Fehler beim Admin-Setup: {e}"
+        return f"Fehler beim Admin-Setup: {e}", 500
+
+@app.route('/init-db')
+def init_db():
+    db.drop_all()
+    db.create_all()
+    return "Datenbank initialisiert"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

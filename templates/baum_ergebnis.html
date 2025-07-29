@@ -1,0 +1,135 @@
+
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Baumdaten</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f4f4;
+            color: #333;
+        }
+        header {
+            background-color: #d3f4d1;
+            padding: 1em;
+            text-align: center;
+        }
+        header h2 {
+            margin: 0;
+            font-size: 1.5em;
+            color: #2b7a2b;
+        }
+        main {
+            padding: 1em;
+            max-width: 900px;
+            margin: auto;
+        }
+        #map {
+            width: 100%;
+            height: 300px;
+            margin-bottom: 1em;
+            border-radius: 8px;
+            box-shadow: 0 0 8px rgba(0,0,0,0.1);
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+        ul li {
+            background: white;
+            margin: 0.5em 0;
+            padding: 0.75em;
+            border-radius: 8px;
+            box-shadow: 0 0 4px rgba(0,0,0,0.05);
+        }
+        a {
+            display: inline-block;
+            margin-top: 1em;
+            margin-right: 1em;
+            padding: 0.5em 1em;
+            background: #2b7a2b;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        a:hover {
+            background: #256b25;
+        }
+        .uid-label {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: #2b7a2b;
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 4px;
+            box-shadow: 0 0 3px rgba(0,0,0,0.2);
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h2>Baumdaten für UID: {{ baum['UID'] }}</h2>
+</header>
+<main>
+    <div id="map"></div>
+    <script>
+        var lat = {{ baum['WGS84-LAT'] }};
+        var lon = {{ baum['WGS84-LON'] }};
+        var uid = "{{ baum['UID'] }}";
+
+        var map = L.map('map').setView([lat, lon], 17);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        const marker = L.marker([lat, lon]).addTo(map);
+        marker.bindTooltip("UID: " + uid, {
+            permanent: true,
+            direction: 'top',
+            offset: [0, -10],
+            className: 'uid-label'
+        }).openTooltip();
+
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(function(position) {
+                var userLat = position.coords.latitude;
+                var userLon = position.coords.longitude;
+
+                if (window.userMarker) {
+                    window.userMarker.setLatLng([userLat, userLon]);
+                } else {
+                    window.userMarker = L.marker([userLat, userLon]).addTo(map).bindPopup("Ihr aktueller Standort").openPopup();
+                }
+
+                if (window.routeLine) {
+                    window.routeLine.setLatLngs([[lat, lon], [userLat, userLon]]);
+                } else {
+                    window.routeLine = L.polyline([[lat, lon], [userLat, userLon]], {color: 'blue'}).addTo(map);
+                }
+            }, function(error) {
+                console.log("Standortzugriff abgelehnt oder fehlgeschlagen.", error);
+            }, {
+                enableHighAccuracy: true,
+                maximumAge: 10000,
+                timeout: 10000
+            });
+        }
+    </script>
+
+    <h3>Weitere Daten:</h3>
+    <ul>
+        {% for key in baum.keys() %}
+            <li><b>{{ key }}:</b> {{ baum[key] }}</li>
+        {% endfor %}
+    </ul>
+
+    <a href="{{ url_for('baum_suche') }}">Neue Suche</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+</main>
+</body>
+</html>

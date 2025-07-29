@@ -1,0 +1,58 @@
+
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <title>Willkommen bei der BaumApp</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #eef8ee;
+            margin: 0;
+            padding: 2em;
+            text-align: center;
+        }
+        img {
+            max-width: 200px;
+            margin-bottom: 1em;
+        }
+        h1 {
+            color: #2b7a2b;
+        }
+        p {
+            max-width: 600px;
+            margin: auto;
+            color: #444;
+            font-size: 1.1em;
+        }
+        .button {
+            margin-top: 2em;
+            display: inline-block;
+            padding: 0.75em 1.5em;
+            background: #2b7a2b;
+            color: white;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        footer {
+            margin-top: 4em;
+            font-size: 0.9em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <img src="/static/Logo.png" alt="Logo">
+    <h1>Willkommen zur Baum-Such-App</h1>
+    <p>Diese Anwendung dient der gezielten Suche und Standortanzeige kontrollierter Bäume mittels ihrer UID. Nach dem Login können Sie eine UID eingeben und erhalten Standort, Karte und zugehörige Baumdaten.</p>
+    <a href="{{ url_for('login') }}" class="button">Zur Anmeldung</a>
+
+    <footer>
+        <p>(c) Sachverständigenbüro für Baumkontrolle Stefan Nord<br>
+        Langenthalstraße 9 – 76848 Spirkelbach<br>
+        Email: info@forstarbeiten.com</p>
+    </footer>
+</body>
+</html>

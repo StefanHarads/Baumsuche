@@ -6,7 +6,6 @@ import csv
 from io import TextIOWrapper
 from werkzeug.security import generate_password_hash, check_password_hash
 from sqlalchemy import text  
-
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 

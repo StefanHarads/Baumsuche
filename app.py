@@ -65,15 +65,16 @@ def baum_suche():
         else:
             return render_template('baum_suche.html', fehler='UID nicht gefunden.')
     return render_template('baum_suche.html')
- # ✅ Temporäre Datenbank-Reset-Route
+
 @app.route('/reset-db')
-@login_required
 def reset_db():
-    if current_user.username != 'admin':
-        return "Zugriff verweigert", 403
-    db.drop_all()
-    db.create_all()
-    return "Datenbank wurde zurückgesetzt."
+    try:
+        db.drop_all()
+        db.create_all()
+        return "✅ Datenbank wurde zurückgesetzt."
+    except Exception as e:
+        return f"❌ Fehler beim Zurücksetzen: {e}"
+
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required

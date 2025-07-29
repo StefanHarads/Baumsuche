@@ -9,7 +9,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 
-# PostgreSQL-Verbindung
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://baumdb_user:eKi9mdvkHzadxOiicwc2c3HX6wRbI3Uk@dpg-d249i5ili9vc73cgsso0-a/baumdb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -18,6 +17,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(150), nullable=False)
@@ -26,7 +26,7 @@ class Tree(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     uid = db.Column(db.String(100), nullable=False)
     data = db.Column(db.JSON, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -64,6 +64,16 @@ def baum_suche():
         else:
             return render_template('baum_suche.html', fehler='UID nicht gefunden.')
     return render_template('baum_suche.html')
+
+# ✅ Temporäre Datenbank-Reset-Route
+@app.route('/reset-db')
+@login_required
+def reset_db():
+    if current_user.username != 'admin':
+        return "Zugriff verweigert", 403
+    db.drop_all()
+    db.create_all()
+    return "Datenbank wurde zurückgesetzt."
 
 @app.route('/admin', methods=['GET', 'POST'])
 @login_required
@@ -117,7 +127,6 @@ def admin():
 
     return render_template('admin.html', users=users)
 
-# ✅ Temporäre Admin-Init-Route
 @app.route('/init-admin')
 def init_admin():
     if User.query.filter_by(username='admin').first():
@@ -128,6 +137,5 @@ def init_admin():
     return "Admin wurde erstellt"
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)

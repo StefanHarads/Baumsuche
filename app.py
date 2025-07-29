@@ -134,6 +134,10 @@ def init_admin():
     db.session.add(admin)
     db.session.commit()
     return "Admin wurde erstellt"
+@app.route('/init-db')
+def init_db():
+    db.create_all()
+    return "Datenbanktabellen erstellt"
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

@@ -130,15 +130,22 @@ def admin():
 @app.route('/init-admin')
 def init_admin():
     try:
+        print("🔍 Starte Admin-Initialisierung...")
         existing = User.query.filter_by(username='admin').first()
+        print(f"✅ Abfrage abgeschlossen. Gefundener User: {existing}")
         if existing:
             return "Admin existiert bereits"
-        admin = User(username='admin', password=generate_password_hash('admin123'))
+        
+        hashed_pw = generate_password_hash('admin123')
+        print(f"🔐 Passwort gehasht: {hashed_pw}")
+        admin = User(username='admin', password=hashed_pw)
         db.session.add(admin)
         db.session.commit()
+        print("✅ Admin gespeichert.")
         return "Admin wurde erstellt"
     except Exception as e:
-        return f"Fehler beim Admin-Setup: {e}"
+        print(f"❌ Fehler bei init-admin: {e}")
+        return f"Fehler beim Admin-Setup: {e}", 500
         #
 @app.route('/init-db')
 def init_db():

@@ -9,7 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 
-# PostgreSQL-Verbindung (fest eingetragen)
+# PostgreSQL-Verbindung
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://baumdb_user:eKi9mdvkHzadxOiicwc2c3HX6wRbI3Uk@dpg-d249i5ili9vc73cgsso0-a/baumdb'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -117,5 +117,17 @@ def admin():
 
     return render_template('admin.html', users=users)
 
+# ✅ Temporäre Admin-Init-Route
+@app.route('/init-admin')
+def init_admin():
+    if User.query.filter_by(username='admin').first():
+        return "Admin existiert bereits"
+    admin = User(username='admin', password=generate_password_hash('admin123'))
+    db.session.add(admin)
+    db.session.commit()
+    return "Admin wurde erstellt"
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

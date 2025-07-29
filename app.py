@@ -1,56 +1,121 @@
-
-from flask import Flask, render_template, request, redirect, url_for, session
-import sqlite3
+from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+import os
+import csv
+from io import TextIOWrapper
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.secret_key = 'dein-geheimer-schluessel'
+app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 
-DB_PATH = 'baeume.db'
+# PostgreSQL-Verbindung (fest eingetragen)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://baumdb_user:eKi9mdvkHzadxOiicwc2c3HX6wRbI3Uk@dpg-d249i5ili9vc73cgsso0-a/baumdb'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-USERS = {
-    'admin': 'passwort123',
-    'demo': 'demo'
-}
+db = SQLAlchemy(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(150), unique=True, nullable=False)
+    password = db.Column(db.String(150), nullable=False)
+
+class Tree(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.String(100), nullable=False)
+    data = db.Column(db.JSON, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 @app.route('/')
 def index():
-    return redirect(url_for('start'))
-
-@app.route('/start')
-def start():
     return render_template('start.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        benutzer = request.form['username']
-        passwort = request.form['password']
-        if benutzer in USERS and USERS[benutzer] == passwort:
-            session['user'] = benutzer
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and check_password_hash(user.password, request.form['password']):
+            login_user(user)
             return redirect(url_for('baum_suche'))
         else:
-            return render_template('login.html', fehler='Login fehlgeschlagen')
+            return render_template('login.html', fehler='Login fehlgeschlagen.')
     return render_template('login.html')
 
 @app.route('/logout')
+@login_required
 def logout():
-    session.pop('user', None)
-    return redirect(url_for('start'))
+    logout_user()
+    return redirect(url_for('index'))
 
 @app.route('/suche', methods=['GET', 'POST'])
+@login_required
 def baum_suche():
-    if 'user' not in session:
-        return redirect(url_for('login'))
     if request.method == 'POST':
         uid = request.form['uid']
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM imported_data WHERE UID = ?", (uid,))
-        baum = cursor.fetchone()
-        conn.close()
-        if baum:
-            return render_template('baum_ergebnis.html', baum=baum)
+        tree = Tree.query.filter_by(uid=uid, user_id=current_user.id).first()
+        if tree:
+            return render_template('baum_ergebnis.html', baum=tree.data)
         else:
-            return render_template('baum_suche.html', fehler="Keine Daten gefunden.")
+            return render_template('baum_suche.html', fehler='UID nicht gefunden.')
     return render_template('baum_suche.html')
+
+@app.route('/admin', methods=['GET', 'POST'])
+@login_required
+def admin():
+    if current_user.username != 'admin':
+        return redirect(url_for('index'))
+
+    from werkzeug.utils import secure_filename
+    users = User.query.all()
+
+    if request.method == 'POST':
+        action = request.form.get('action')
+        username = request.form.get('username')
+
+        if action == 'create':
+            password = generate_password_hash(request.form.get('password'))
+            if not User.query.filter_by(username=username).first():
+                user = User(username=username, password=password)
+                db.session.add(user)
+                db.session.commit()
+                flash('Benutzer erstellt.')
+            else:
+                flash('Benutzer existiert bereits.')
+
+        elif action == 'delete':
+            if username != 'admin':
+                user = User.query.filter_by(username=username).first()
+                Tree.query.filter_by(user_id=user.id).delete()
+                db.session.delete(user)
+                db.session.commit()
+                flash('Benutzer gelöscht.')
+
+        elif action == 'update_password':
+            new_pw = generate_password_hash(request.form.get('password'))
+            user = User.query.filter_by(username=username).first()
+            user.password = new_pw
+            db.session.commit()
+            flash('Passwort aktualisiert.')
+
+        elif action == 'upload_csv':
+            file = request.files['csvfile']
+            if file and username:
+                user = User.query.filter_by(username=username).first()
+                reader = csv.DictReader(TextIOWrapper(file, encoding='utf-8'))
+                Tree.query.filter_by(user_id=user.id).delete()
+                for row in reader:
+                    tree = Tree(uid=row['UID'], data=row, user_id=user.id)
+                    db.session.add(tree)
+                db.session.commit()
+                flash('CSV importiert.')
+
+    return render_template('admin.html', users=users)
+
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -137,6 +137,12 @@ def init_db():
     db.create_all()
     return "Datenbank initialisiert"
 
+
+@app.route('/db-check')
+def db_check():
+    return f"Datenbankverbindung: {app.config['SQLALCHEMY_DATABASE_URI']}"
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)

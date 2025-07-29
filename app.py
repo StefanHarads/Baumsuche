@@ -1,12 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text  
+from flask_sqlalchemy import SQLAlchemy 
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 import os
 import csv
 from io import TextIOWrapper
 from werkzeug.security import generate_password_hash, check_password_hash
-  
+from sqlalchemy import text  
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')

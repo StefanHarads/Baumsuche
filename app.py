@@ -5,6 +5,7 @@ import os
 import csv
 from io import TextIOWrapper
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import text   
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
@@ -143,12 +144,14 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
 
+ from sqlalchemy import text  # ganz oben in deiner app.py ergänzen
+
 @app.route('/debug-tables')
 def debug_tables():
     try:
         with db.engine.connect() as connection:
             result = connection.execute(
-                "SELECT tablename FROM pg_tables WHERE schemaname = 'public';"
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public';")
             )
             tables = [row[0] for row in result]
         return f"Gefundene Tabellen: {tables}"

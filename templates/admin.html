@@ -1,154 +1,77 @@
-<!doctype html>
-<html lang="de">
+
+<!DOCTYPE html>
+<html>
 <head>
-  <meta charset="utf-8">
-  <title>Admin – Benutzerverwaltung</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    :root {
-      --primary: #2b7a2b;
-      --primary-dark: #256b25;
-      --bg: #f4f4f4;
-      --white: #fff;
-      --text: #333;
-      --shadow: 0 0 10px rgba(0,0,0,0.1);
-      --radius: 10px;
-      --transition: all 0.2s ease-in-out;
-    }
-    body {
-      font-family: Arial, sans-serif;
-      background: var(--bg);
-      margin: 0;
-      padding: 2em;
-      color: var(--text);
-    }
-    .admin-panel {
-      max-width: 800px;
-      margin: auto;
-      background: var(--white);
-      border-radius: var(--radius);
-      padding: 2em;
-      box-shadow: var(--shadow);
-    }
-    h2, h3 {
-      text-align: center;
-      color: var(--primary);
-    }
-    form input,
-    form select {
-      padding: 0.5em;
-      margin: 0.5em 0;
-      border: 1px solid #ccc;
-      border-radius: var(--radius);
-      width: 100%;
-    }
-    form button,
-    form input[type="submit"] {
-      background: var(--primary);
-      color: white;
-      padding: 0.5em 1em;
-      border: none;
-      border-radius: var(--radius);
-      cursor: pointer;
-      font-weight: bold;
-      transition: var(--transition);
-    }
-    form button:hover,
-    form input[type="submit"]:hover {
-      background: var(--primary-dark);
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1em;
-    }
-    th, td {
-      padding: 0.75em;
-      border-bottom: 1px solid #ccc;
-      text-align: left;
-    }
-    .flash {
-      text-align: center;
-      color: red;
-      margin-bottom: 1em;
-    }
-    .logout-link {
-      text-align: center;
-      margin-top: 2em;
-    }
-    .logout-link a {
-      color: var(--primary);
-      text-decoration: none;
-      font-weight: bold;
-    }
-  </style>
+    <title>Admin-Bereich</title>
+    <meta charset="utf-8">
 </head>
 <body>
-  <h2>Benutzerverwaltung (Admin)</h2>
-  <div class="admin-panel">
+    <h1>👤 Admin-Bereich</h1>
 
     {% with messages = get_flashed_messages() %}
       {% if messages %}
-        <div class="flash">
-          {% for msg in messages %}<p>{{ msg }}</p>{% endfor %}
-        </div>
+        <ul>
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
       {% endif %}
     {% endwith %}
 
-    <h3>➕ Neuen Benutzer erstellen</h3>
-    <form method="post">
-      <input type="hidden" name="action" value="create">
-      <input type="text" name="username" placeholder="Benutzername" required>
-      <input type="password" name="password" placeholder="Passwort" required>
-      <input type="submit" value="Benutzer erstellen">
-    </form>
-
-    <h3>📋 Bestehende Benutzer verwalten</h3>
-    <table>
-      <thead>
-        <tr><th>Benutzername</th><th>Aktionen</th></tr>
-      </thead>
-      <tbody>
+    <h2>📋 Vorhandene Benutzer</h2>
+    <ul>
         {% for user in users %}
-        <tr>
-          <td>{{ user.username }}</td>
-          <td>
-            {% if user.username != 'admin' %}
-              <form method="post" style="display:inline;">
-                <input type="hidden" name="action" value="delete">
-                <input type="hidden" name="username" value="{{ user.username }}">
-                <button type="submit">Löschen</button>
-              </form>
-              <form method="post" style="display:inline;">
-                <input type="hidden" name="action" value="update_password">
-                <input type="hidden" name="username" value="{{ user.username }}">
-                <input type="password" name="password" placeholder="Neues Passwort" required>
-                <button type="submit">Passwort ändern</button>
-              </form>
-            {% else %}
-              <em>Admin geschützt</em>
-            {% endif %}
-          </td>
-        </tr>
+            <li>{{ user.username }}</li>
         {% endfor %}
-      </tbody>
-    </table>
+    </ul>
 
-    <h3>📤 CSV-Upload für Baumdaten</h3>
-    <form method="post" enctype="multipart/form-data">
-      <input type="hidden" name="action" value="upload_csv">
-      <label for="username">Benutzer auswählen:</label>
-      <select name="username" required>
-        {% for user in users %}<option value="{{ user.username }}">{{ user.username }}</option>{% endfor %}
-      </select>
-      <label for="csvfile">CSV-Datei auswählen:</label>
-      <input type="file" name="csvfile" accept=".csv" required>
-      <input type="submit" value="CSV hochladen">
+    <hr>
+
+    <h3>➕ Benutzer erstellen</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="create">
+        <label>Benutzername:</label><br>
+        <input type="text" name="username" required><br>
+        <label>Passwort:</label><br>
+        <input type="password" name="password" required><br><br>
+        <button type="submit">Benutzer erstellen</button>
     </form>
 
-    <div class="logout-link">
-      <a href="{{ url_for('logout') }}">Abmelden</a>
-    </div>
-  </div>
+    <hr>
+
+    <h3>🗑️ Benutzer löschen</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="delete">
+        <label>Benutzername:</label><br>
+        <input type="text" name="username" required><br><br>
+        <button type="submit">Benutzer löschen</button>
+    </form>
+
+    <hr>
+
+    <h3>🔐 Passwort eines Benutzers ändern</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_password">
+        <label>Benutzername:</label><br>
+        <input type="text" name="username" required><br>
+        <label>Neues Passwort:</label><br>
+        <input type="password" name="password" required><br><br>
+        <button type="submit">Passwort aktualisieren</button>
+    </form>
+
+    <hr>
+
+    <h3>📥 CSV-Datei hochladen</h3>
+    <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="action" value="upload_csv">
+        <label>CSV-Datei:</label><br>
+        <input type="file" name="csvfile" required><br>
+        <label>Benutzername (für Datenimport):</label><br>
+        <input type="text" name="username" required><br><br>
+        <button type="submit">CSV hochladen</button>
+    </form>
+
+    <hr>
+    <a href="{{ url_for('logout') }}">🚪 Abmelden</a>
 </body>
 </html>

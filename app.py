@@ -1,15 +1,26 @@
-from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file
-from flask_sqlalchemy import SQLAlchemy 
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+# app.py
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    session, flash, send_file, current_app, jsonify
+)
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import (
+    LoginManager, UserMixin, login_user, login_required,
+    logout_user, current_user
+)
+from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import text, UniqueConstraint
 import os
 import csv
-from io import TextIOWrapper
-from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text
-# ➕ Logging aktivieren
+import io
 import logging
+
+# 🔊 Logging
 logging.basicConfig(level=logging.DEBUG)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Flask & DB Setup
+# ──────────────────────────────────────────────────────────────────────────────
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'default_secret')
 
@@ -20,22 +31,41 @@ db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Models
+# ──────────────────────────────────────────────────────────────────────────────
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
+    id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     password = db.Column(db.String(300), nullable=False)
 
 class Tree(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    uid = db.Column(db.String(100), nullable=False)
-    data = db.Column(db.JSON, nullable=False)
+    __tablename__ = 'trees'
+    id      = db.Column(db.Integer, primary_key=True)
+    uid     = db.Column(db.String(100), nullable=False)
+    data    = db.Column(db.JSON, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+
+    # DB-seitige Duplikatvermeidung: pro Nutzer darf eine UID nur einmal existieren
+    __table_args__ = (
+        UniqueConstraint('user_id', 'uid', name='uq_tree_user_uid'),
+    )
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Utils
+# ──────────────────────────────────────────────────────────────────────────────
+def _normalize_header(name: str) -> str:
+    """ Entfernt BOM/Whitespace und normalisiert auf lowercase. """
+    return (name or "").replace("\ufeff", "").strip().lower()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Routes
+# ──────────────────────────────────────────────────────────────────────────────
 @app.route('/')
 def index():
     return render_template('start.html')
@@ -77,11 +107,12 @@ def baum_suche():
 def admin():
     if current_user.username != 'admin':
         return redirect(url_for('index'))
+
     from werkzeug.utils import secure_filename
     users = User.query.all()
 
     if request.method == 'POST':
-        action = request.form.get('action')
+        action   = request.form.get('action')
         username = request.form.get('username')
 
         if action == 'create':
@@ -91,62 +122,4 @@ def admin():
                 db.session.add(user)
                 db.session.commit()
                 flash('Benutzer erstellt.')
-            else:
-                flash('Benutzer existiert bereits.')
-
-        elif action == 'delete':
-            if username != 'admin':
-                user = User.query.filter_by(username=username).first()
-                Tree.query.filter_by(user_id=user.id).delete()
-                db.session.delete(user)
-                db.session.commit()
-                flash('Benutzer gelöscht.')
-
-        elif action == 'update_password':
-            new_pw = generate_password_hash(request.form.get('password'))
-            user = User.query.filter_by(username=username).first()
-            user.password = new_pw
-            db.session.commit()
-            flash('Passwort aktualisiert.')
-
-        elif action == 'upload_csv':
-            file = request.files['csvfile']
-            if file and username:
-                user = User.query.filter_by(username=username).first()
-                reader = csv.DictReader(TextIOWrapper(file, encoding='utf-8'))
-                Tree.query.filter_by(user_id=user.id).delete()
-                for row in reader:
-                    tree = Tree(uid=row['UID'], data=row, user_id=user.id)
-                    db.session.add(tree)
-                db.session.commit()
-                flash('CSV importiert.')
-
-    return render_template('admin.html', users=users)
-
-@app.route('/init-admin')
-def init_admin():
-    if User.query.filter_by(username='admin').first():
-        return "Admin existiert bereits"
-    try:
-        hashed_pw = generate_password_hash('admin123')
-        admin = User(username='admin', password=hashed_pw)
-        db.session.add(admin)
-        db.session.commit()
-        return "Admin wurde erstellt"
-    except Exception as e:
-        return f"Fehler beim Admin-Setup: {e}"
-
-@app.route('/db-check')
-def db_check():
-    uri = app.config['SQLALCHEMY_DATABASE_URI']
-    if uri.startswith("postgresql"):
-        typ = "PostgreSQL"
-    elif uri.startswith("sqlite"):
-        typ = "SQLite"
-    else:
-        typ = "Unbekannt"
-    return f"Datenbanktyp: {typ}"
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+            else
